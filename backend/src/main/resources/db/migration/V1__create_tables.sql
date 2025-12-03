@@ -24,11 +24,15 @@ CREATE TABLE users (
     role VARCHAR(20) NOT NULL,
     is_active BOOLEAN DEFAULT TRUE,
 
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP WITH TIME ZONE,
 
     CONSTRAINT chk_user_role CHECK (role IN ('ADMIN', 'USER'))
 );
+
+-- Partial index for soft delete - only active users
+CREATE INDEX idx_users_active ON users(email) WHERE deleted_at IS NULL;
 
 -- Trigger for users
 CREATE TRIGGER update_users_modtime BEFORE UPDATE ON users FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
@@ -41,8 +45,9 @@ CREATE TABLE buildings (
     name VARCHAR(100) NOT NULL,
     address VARCHAR(255) NOT NULL,
 
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP WITH TIME ZONE
 );
 CREATE TRIGGER update_buildings_modtime BEFORE UPDATE ON buildings FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
 
@@ -52,8 +57,9 @@ CREATE TABLE floors (
     floor_number INT NOT NULL,
     capacity INT NOT NULL DEFAULT 0,
 
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP WITH TIME ZONE,
 
     UNIQUE(building_id, floor_number)
 );
@@ -66,21 +72,25 @@ CREATE TABLE parking_spots (
     spot_number VARCHAR(20) NOT NULL,
     type VARCHAR(20) NOT NULL,
     status VARCHAR(20) NOT NULL DEFAULT 'AVAILABLE',
+    reserved_by_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
 
     version BIGINT NOT NULL DEFAULT 0,
 
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP WITH TIME ZONE,
 
     UNIQUE(floor_id, spot_number),
-    CONSTRAINT chk_spot_type CHECK (type IN ('REGULAR', 'VIP', 'HANDICAP', 'EV_CHARGING')),
-    CONSTRAINT chk_spot_status CHECK (status IN ('AVAILABLE', 'OCCUPIED', 'RESERVED', 'MAINTENANCE'))
+    CONSTRAINT chk_spot_type CHECK (type IN ('STANDARD', 'VIP', 'HANDICAP', 'EV_CHARGING')),
+    CONSTRAINT chk_spot_status CHECK (status IN ('AVAILABLE', 'OCCUPIED', 'RESERVED', 'UNDER_MAINTENANCE')),
+    CONSTRAINT chk_reserved_spot_has_user CHECK (status != 'RESERVED' OR reserved_by_user_id IS NOT NULL)
 );
 CREATE TRIGGER update_spots_modtime BEFORE UPDATE ON parking_spots FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
 
 -- Indexes for fast searches
 CREATE INDEX idx_spots_floor_id ON parking_spots(floor_id);
 CREATE INDEX idx_spots_status_type ON parking_spots(status, type);
+CREATE INDEX idx_spots_reserved_by ON parking_spots(reserved_by_user_id);
 
 -- ==========================================
 -- 3. OPERATIONS
@@ -91,10 +101,12 @@ CREATE TABLE reservations (
     spot_id UUID REFERENCES parking_spots(id) ON DELETE SET NULL,
     start_time TIMESTAMP WITH TIME ZONE NOT NULL,
     end_time TIMESTAMP WITH TIME ZONE NOT NULL,
+    vehicle_number VARCHAR(50),
     status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
 
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP WITH TIME ZONE,
 
     CONSTRAINT chk_res_status CHECK (status IN ('PENDING', 'ACTIVE', 'COMPLETED', 'CANCELLED')),
     CONSTRAINT chk_res_time CHECK (end_time > start_time)
@@ -112,11 +124,14 @@ CREATE TABLE parking_sessions (
     spot_id UUID REFERENCES parking_spots(id) ON DELETE SET NULL,
     check_in_time TIMESTAMP WITH TIME ZONE NOT NULL,
     check_out_time TIMESTAMP WITH TIME ZONE,
+    duration_minutes BIGINT,
     amount_due DECIMAL(10, 2) DEFAULT 0.00,
+    vehicle_number VARCHAR(50),
     status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
 
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP WITH TIME ZONE,
 
     CONSTRAINT chk_session_status CHECK (status IN ('ACTIVE', 'COMPLETED')),
     CONSTRAINT chk_session_time CHECK (check_out_time IS NULL OR check_out_time > check_in_time),
@@ -128,6 +143,7 @@ CREATE TRIGGER update_sessions_modtime BEFORE UPDATE ON parking_sessions FOR EAC
 CREATE INDEX idx_sessions_user_id ON parking_sessions(user_id);
 CREATE INDEX idx_sessions_spot_id ON parking_sessions(spot_id);
 CREATE INDEX idx_sessions_status ON parking_sessions(status);
+CREATE INDEX idx_sessions_vehicle_number ON parking_sessions(vehicle_number);
 
 -- ==========================================
 -- 4. FINANCIALS (Payments)
@@ -141,8 +157,9 @@ CREATE TABLE payments (
     status VARCHAR(20) NOT NULL,
     transaction_reference VARCHAR(100),
 
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP WITH TIME ZONE,
 
     CONSTRAINT chk_payment_amount CHECK (amount > 0),
     CONSTRAINT chk_payment_method CHECK (method IN ('CREDIT_CARD', 'DEBIT_CARD', 'CASH', 'APP', 'OTHER')),
@@ -162,7 +179,7 @@ CREATE TABLE activity_logs (
     user_id UUID REFERENCES users(id) ON DELETE SET NULL,
     action VARCHAR(50) NOT NULL,
     details TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Index for activity logs
