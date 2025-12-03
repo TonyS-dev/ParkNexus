@@ -11,6 +11,7 @@ import org.codeup.parknexus.exception.ConflictException;
 import org.codeup.parknexus.exception.ResourceNotFoundException;
 import org.codeup.parknexus.repository.IParkingSessionRepository;
 import org.codeup.parknexus.repository.IParkingSpotRepository;
+import org.codeup.parknexus.repository.specification.ParkingSpotSpecification;
 import org.codeup.parknexus.service.IActivityLogService;
 import org.codeup.parknexus.service.IParkingService;
 import org.codeup.parknexus.service.IPaymentService;
@@ -104,6 +105,14 @@ public class ParkingServiceImpl implements IParkingService {
     @Override
     public List<ParkingSpot> getAvailableSpots() {
         return spotRepository.findByStatus(SpotStatus.AVAILABLE);
+    }
+
+    @Override
+    public List<ParkingSpot> getAvailableSpots(UUID buildingId, UUID floorId, SpotType type, SpotStatus status) {
+        SpotStatus filterStatus = status != null ? status : SpotStatus.AVAILABLE;
+        return spotRepository.findAll(
+            ParkingSpotSpecification.withFilters(buildingId, floorId, type, filterStatus)
+        );
     }
 
     /**

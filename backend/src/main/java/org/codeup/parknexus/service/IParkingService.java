@@ -3,6 +3,8 @@ package org.codeup.parknexus.service;
 import org.codeup.parknexus.domain.ParkingSession;
 import org.codeup.parknexus.domain.ParkingSpot;
 import org.codeup.parknexus.domain.User;
+import org.codeup.parknexus.domain.enums.SpotStatus;
+import org.codeup.parknexus.domain.enums.SpotType;
 import org.codeup.parknexus.web.dto.user.CheckOutResponse;
 
 import java.util.List;
@@ -12,5 +14,6 @@ public interface IParkingService {
     ParkingSession checkIn(User user, UUID spotId);
     CheckOutResponse checkOut(UUID sessionId);
     List<ParkingSpot> getAvailableSpots();
+    List<ParkingSpot> getAvailableSpots(UUID buildingId, UUID floorId, SpotType type, SpotStatus status);
 }
 

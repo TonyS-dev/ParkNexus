@@ -42,7 +42,7 @@ public class UserController {
             @RequestParam(required = false) UUID floorId,
             @RequestParam(required = false) SpotType type,
             @RequestParam(required = false, defaultValue = "AVAILABLE") SpotStatus status) {
-        List<ParkingSpot> spots = parkingService.getAvailableSpots(); // TODO: pass filters when service is updated
+        List<ParkingSpot> spots = parkingService.getAvailableSpots(buildingId, floorId, type, status);
         return ResponseEntity.ok(parkingSpotMapper.toUserResponses(spots));
     }
 

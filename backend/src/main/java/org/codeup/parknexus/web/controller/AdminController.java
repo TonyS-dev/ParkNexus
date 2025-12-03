@@ -7,6 +7,7 @@ import org.codeup.parknexus.domain.Building;
 import org.codeup.parknexus.repository.IActivityLogRepository;
 import org.codeup.parknexus.repository.IUserRepository;
 import org.codeup.parknexus.service.IAdminService;
+import org.codeup.parknexus.web.dto.common.PageResponse;
 import org.codeup.parknexus.web.dto.admin.*;
 import org.codeup.parknexus.web.mapper.ActivityLogMapper;
 import org.codeup.parknexus.web.mapper.BuildingMapper;
@@ -43,18 +44,50 @@ public class AdminController {
     }
 
     @GetMapping("/logs")
-    public ResponseEntity<List<ActivityLogResponse>> logs(@RequestParam(defaultValue = "0") int page,
-                                                          @RequestParam(defaultValue = "20") int size) {
+    public ResponseEntity<PageResponse<ActivityLogResponse>> logs(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
         Pageable pageable = PageRequest.of(page, size);
         Page<ActivityLog> logPage = activityLogRepository.findAll(pageable);
-        return ResponseEntity.ok(activityLogMapper.toResponses(logPage.getContent()));
+
+        PageResponse<ActivityLogResponse> response =
+            PageResponse.<ActivityLogResponse>builder()
+                .items(activityLogMapper.toResponses(logPage.getContent()))
+                .page(page)
+                .size(size)
+                .totalElements(logPage.getTotalElements())
+                .totalPages(logPage.getTotalPages())
+                .build();
+
+        return ResponseEntity.ok(response);
     }
 
     @GetMapping("/users")
-    public ResponseEntity<List<UserResponse>> users(@RequestParam(defaultValue = "0") int page,
-                                                    @RequestParam(defaultValue = "20") int size) {
+    public ResponseEntity<PageResponse<UserResponse>> users(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String role,
+            @RequestParam(required = false) Boolean active) {
         Pageable pageable = PageRequest.of(page, size);
-        Page<org.codeup.parknexus.domain.User> userPage = userRepository.findAll(pageable);
-        return ResponseEntity.ok(userMapper.toResponses(userPage.getContent()));
+
+        // Build specification dynamically based on filters
+        org.springframework.data.jpa.domain.Specification<org.codeup.parknexus.domain.User> spec =
+            org.codeup.parknexus.repository.specification.UserSpecification.withFilters(
+                role != null ? org.codeup.parknexus.domain.enums.Role.valueOf(role) : null,
+                active
+            );
+
+        Page<org.codeup.parknexus.domain.User> userPage = userRepository.findAll(spec, pageable);
+
+        PageResponse<UserResponse> response =
+            PageResponse.<UserResponse>builder()
+                .items(userMapper.toResponses(userPage.getContent()))
+                .page(page)
+                .size(size)
+                .totalElements(userPage.getTotalElements())
+                .totalPages(userPage.getTotalPages())
+                .build();
+
+        return ResponseEntity.ok(response);
     }
 }
