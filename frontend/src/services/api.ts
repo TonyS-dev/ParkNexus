@@ -1,7 +1,6 @@
 import axios from 'axios';
 import type { AxiosError, InternalAxiosRequestConfig } from 'axios';
 import type { ApiError } from '../types/index';
-import { getErrorMessage, getErrorMeta } from '../lib/getErrorMessage';
 import { isTokenValid } from '../lib/utils';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
@@ -76,18 +75,10 @@ api.interceptors.response.use(
       console.error('Access denied - insufficient permissions');
     }
 
-    const message = getErrorMessage(error, 'An unexpected error occurred');
-    const meta = getErrorMeta(error);
-
-    // Create standardized error object
-    const apiError: ApiError = {
-      message,
-      status: error.response?.status,
-      timestamp: meta.timestamp,
-      path: meta.path,
-    };
-
-    return Promise.reject(apiError);
+    // IMPORTANT: Pass through the original error object so error handlers
+    // can properly extract the backend message from error.response.data
+    // Don't extract the message here as it gets the generic Axios message
+    return Promise.reject(error);
   }
 );
 

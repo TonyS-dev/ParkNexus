@@ -5,16 +5,18 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.codeup.parknexus.web.validation.FutureOrPresent;
 
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Data @NoArgsConstructor @AllArgsConstructor @Builder
 public class ReservationRequest {
-    @NotNull
+    @NotNull(message = "Spot ID is required")
     private UUID spotId;
 
-    @NotNull
+    @NotNull(message = "Start time is required")
+    @FutureOrPresent(message = "Dates in the past are not available. Please select a future date and time.")
     private OffsetDateTime startTime;
 
     // optional vehicle number for the reservation

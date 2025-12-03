@@ -40,6 +40,12 @@ public class ReservationServiceImpl implements IReservationService {
             throw new BadRequestException("Spot is not available for reservation");
         }
         
+        // Validate that reservation is not in the past
+        OffsetDateTime now = OffsetDateTime.now();
+        if (startTime.isBefore(now)) {
+            throw new BadRequestException("Dates in the past are not available for reservations. Please select a future date and time.");
+        }
+
         // Use default duration of 2 hours (120 minutes) if not provided
         if (durationMinutes == null) {
             durationMinutes = 120;

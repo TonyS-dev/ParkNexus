@@ -135,7 +135,7 @@ const Reservations = () => {
       }
     },
     onError: (error: Error) => {
-      toast.push({ message: `Reservation failed: ${error.message}`, variant: 'error' });
+      toast.push({ message: errorHandler.humanize(error, 'reservation'), variant: 'error' });
     },
   });
 
@@ -149,7 +149,7 @@ const Reservations = () => {
       toast.push({ message: 'Reservation cancelled successfully.', variant: 'success' });
     },
     onError: (error: Error) => {
-      toast.push({ message: `Failed to cancel reservation: ${error.message}`, variant: 'error' });
+      toast.push({ message: errorHandler.humanize(error, 'reservation'), variant: 'error' });
     },
   });
 

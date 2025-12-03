@@ -7,21 +7,53 @@ export function getErrorMessage(err: unknown, fallback = 'An unexpected error oc
   if (typeof err === 'string') return err;
   if (isRecord(err)) {
     const e = err as Record<string, unknown>;
-    // Common fields
-    if (typeof e.message === 'string') return e.message;
-    if (typeof e.error === 'string') return e.error;
-    if (typeof e.detail === 'string') return e.detail;
-    // Axios-style: error.response?.data?.message
+
+    // PRIORITY 1: Check Axios response structure FIRST (before checking e.message)
+    // This is because axios wraps errors with generic messages like "Request failed with status code 400"
     const resp = e.response;
     if (isRecord(resp)) {
       const data = resp.data;
-      if (typeof data === 'string') return data;
+
+      if (typeof data === 'string' && data) return data;
       if (isRecord(data)) {
-        if (typeof data.message === 'string') return data.message;
-        if (typeof data.error === 'string') return data.error;
-        if (typeof data.detail === 'string') return data.detail;
+        // Backend typically returns: { message: "...", timestamp: "...", status: 400 }
+        // Or Spring Problem Details: { title: "...", detail: "...", status: 400 }
+        // Or validation errors: { type: "/errors/validation", errors: [{field, message, rejectedValue}], ... }
+
+        // Check for validation errors array first (Spring Boot validation)
+        // Structure: { errors: [{field: "startTime", message: "Dates in the past...", rejectedValue: "..."}] }
+        if (Array.isArray(data.errors) && data.errors.length > 0) {
+          const firstError = data.errors[0];
+          if (isRecord(firstError)) {
+            // Spring Boot validation error format
+            if (typeof firstError.message === 'string' && firstError.message) {
+              return firstError.message;
+            }
+            // Alternative format: defaultMessage
+            if (typeof firstError.defaultMessage === 'string' && firstError.defaultMessage) {
+              return firstError.defaultMessage;
+            }
+          }
+          if (typeof firstError === 'string') {
+            return firstError;
+          }
+        }
+
+        // Check standard fields
+        if (typeof data.message === 'string' && data.message) return data.message;
+        if (typeof data.detail === 'string' && data.detail) return data.detail;
+        if (typeof data.title === 'string' && data.title) return data.title;
+        if (typeof data.error === 'string' && data.error) return data.error;
       }
     }
+
+    // PRIORITY 2: Check for message field (only if response extraction failed)
+    if (typeof e.message === 'string' && e.message) return e.message;
+
+    // PRIORITY 3: Other common error fields
+    if (typeof e.error === 'string' && e.error) return e.error;
+    if (typeof e.detail === 'string' && e.detail) return e.detail;
+
     // Fallback to JSON string
     try {
       return JSON.stringify(e);
@@ -81,8 +113,11 @@ export function humanizeErrorMessage(err: unknown, context?: string): string {
     ['already checked in', '🚗 You\'re already checked in to a parking spot. Please check out first.'],
 
     // Reservation conflicts
+    ['dates in the past', '📅 Dates in the past are not available. Please select a future date and time.'],
+    ['past are not available', '📅 Dates in the past are not available. Please select a future date and time.'],
     ['spot is reserved', '📅 This spot is currently reserved by another user. Please choose a different spot or time.'],
     ['already reserved', '📅 You already have a reservation for this time. Please cancel your existing reservation first.'],
+    ['overlapping reservation', '📅 There is already a reservation for this spot at that time. Please choose a different time.'],
     ['reservation not found', '📅 We couldn\'t find your reservation. It may have been cancelled or expired.'],
     ['reservation expired', '⏰ Your reservation has expired. Please create a new reservation.'],
     ['cannot check in yet', '⏰ It\'s too early to check in. You can check in starting 1 hour before your reservation time.'],
