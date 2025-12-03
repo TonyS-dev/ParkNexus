@@ -1,0 +1,48 @@
+package org.codeup.parknexus.service.strategy;
+
+import java.util.Map;
+import java.util.Optional;
+
+import org.springframework.stereotype.Component;
+
+/**
+ * Simple factory for fee calculation strategies. Strategies are looked up by key.
+ * It relies on Spring to wire implementations as beans and then provide them here if needed.
+ */
+@Component
+public class FeeCalculatorFactory {
+
+    private final Map<String, IFeeCalculationStrategy> strategies;
+
+    public FeeCalculatorFactory(Optional<Map<String, IFeeCalculationStrategy>> strategies) {
+        // Spring will autowire all IFeeCalculationStrategy beans keyed by bean name.
+        this.strategies = strategies.orElse(Map.of());
+    }
+
+    /**
+     * Get a strategy by key. Keys are case-insensitive.
+     * Common keys: "STANDARD", "VIP", or the bean simple class names like "standardFeeStrategy".
+     */
+    public IFeeCalculationStrategy getStrategy(String key) {
+        if (key == null) {
+            return strategies.values().stream().findFirst().orElseThrow(() -> new IllegalStateException("No fee strategies available"));
+        }
+        String normalized = key.trim().toUpperCase();
+        // try common names
+        if (normalized.equals("VIP") && strategies.containsKey("vipFeeStrategy")) {
+            return strategies.get("vipFeeStrategy");
+        }
+        if (normalized.equals("STANDARD") && strategies.containsKey("standardFeeStrategy")) {
+            return strategies.get("standardFeeStrategy");
+        }
+        // try by bean name
+        String beanKey = key.substring(0, 1).toLowerCase() + key.substring(1);
+        if (strategies.containsKey(beanKey)) {
+            return strategies.get(beanKey);
+        }
+
+        // fallback to first available
+        return strategies.values().stream().findFirst().orElseThrow(() -> new IllegalStateException("No fee strategies available"));
+    }
+}
+
