@@ -11,7 +11,7 @@ services:
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     ports:
-      - "5432:5432" # Maps the DB port to the host so it can be connected from outside
+      - "5433:5432" # Maps the DB port to the host so it can be connected from outside
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -23,7 +23,7 @@ services:
   # Spring Boot application service
   app:
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile
     container_name: parknexus-backend-app
     depends_on:

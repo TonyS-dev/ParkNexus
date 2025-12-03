@@ -1,1 +1,92 @@
-spring.application.name=parknexus
+# --- Base configuration ---
+server:
+  port: 8080
+
+spring:
+  profiles:
+    active: local
+  application:
+    name: parknexus-backend
+  jpa:
+    hibernate:
+      ddl-auto: validate # Flyway manages the creation/update of the schema
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true # Legible sql logs format
+    show-sql: false # Use logging for better control
+  flyway:
+    enabled: true
+
+# JWT configuration
+jwt:
+  secret: ${JWT_SECRET}
+  expiration: ${JWT_EXPIRATION}
+
+# Logging
+logging:
+  level:
+    org.springframework.web: INFO
+    org.hibernate.SQL: DEBUG # Show Hibernate queries
+
+---
+# --- Local development profile (active by default) ---
+spring:
+  config:
+    activate:
+      on-profile: "local"
+  datasource:
+    url: jdbc:postgresql://localhost:${DB_PORT:5432}/${DB_NAME}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+
+---
+# --- Docker profile ---
+spring:
+  config:
+    activate:
+      on-profile: "docker"
+  datasource:
+    # Inside docker, the services are communicated by their service name
+    url: jdbc:postgresql://postgres:5432/${DB_NAME}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+
+---
+# --- Production profile ---
+spring:
+  config:
+    activate:
+      on-profile: "prod"
+  datasource:
+    url: ${DATABASE_URL}  # Complete URL
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+    hikari:  # Connection config pool for production
+      maximum-pool-size: 10
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+  jpa:
+    show-sql: false  # Never show SQL in Production
+    properties:
+      hibernate:
+        format_sql: false
+
+# Restrictive logging in production
+logging:
+  level:
+    root: WARN
+    org.codeup.parknexus: INFO
+    org.springframework.web: WARN
+    org.hibernate.SQL: WARN
+
+# Additional Security
+server:
+  error:
+    include-message: never  # Never expose error messages
+    include-stacktrace: never

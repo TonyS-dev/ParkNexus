@@ -5,12 +5,12 @@ FROM gradle:8.5-jdk17-alpine AS build
 # Set the working directory
 WORKDIR /app
 
-# Copy the build.gradle.kts and settings.gradle.kts to leverage Docker layer caching
-COPY build.gradle.kts settings.gradle.kts ./
+# Copy the build.gradle and settings.gradle to leverage Docker layer caching
+COPY build.gradle settings.gradle ./
 
 # Download dependencies
 # The --build-cache is a Gradle optimization
-RUN gradle --build-cache build -x test
+RUN gradle --build-cache build -x test -x bootJar
 
 # Copy the rest of the source code
 COPY . .
