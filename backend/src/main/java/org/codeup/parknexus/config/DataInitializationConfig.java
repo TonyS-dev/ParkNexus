@@ -6,6 +6,8 @@ import org.codeup.parknexus.domain.*;
 import org.codeup.parknexus.domain.enums.Role;
 import org.codeup.parknexus.domain.enums.ReservationStatus;
 import org.codeup.parknexus.domain.enums.SessionStatus;
+import org.codeup.parknexus.domain.enums.PaymentMethod;
+import org.codeup.parknexus.domain.enums.PaymentStatus;
 import org.codeup.parknexus.repository.*;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
@@ -31,6 +33,7 @@ public class DataInitializationConfig {
     private final IParkingSessionRepository parkingSessionRepository;
     private final IReservationRepository reservationRepository;
     private final IActivityLogRepository activityLogRepository;
+    private final IPaymentRepository paymentRepository;
 
     @Bean
     public CommandLineRunner initializeTestData() {
@@ -228,6 +231,36 @@ public class DataInitializationConfig {
                         session6, session7, session8, session9, session10
                 ));
                 log.info("Parking sessions created successfully! ({} sessions saved)", savedSessions.size());
+
+                // ==========================================
+                // Seed Payments (payment records for completed sessions)
+                // ==========================================
+                log.info("Creating payment records...");
+
+                var savedSessionsList = new java.util.ArrayList<>(savedSessions);
+
+                // Create payments for completed sessions (sessions 3-10)
+                java.util.List<Payment> payments = new java.util.ArrayList<>();
+
+                for (int i = 2; i < savedSessionsList.size(); i++) {
+                    ParkingSession session = savedSessionsList.get(i);
+                    if (session.getStatus() == SessionStatus.COMPLETED && session.getAmountDue() != null) {
+                        Payment payment = Payment.builder()
+                                .session(session)
+                                .amount(session.getAmountDue())
+                                .method(PaymentMethod.CREDIT_CARD)
+                                .currency("USD")
+                                .status(PaymentStatus.SUCCESS)
+                                .transactionReference("TXN-" + session.getId().toString().substring(0, 8).toUpperCase())
+                                .build();
+                        payments.add(payment);
+                    }
+                }
+
+                if (!payments.isEmpty()) {
+                    var savedPayments = paymentRepository.saveAll(payments);
+                    log.info("Payment records created successfully! ({} payments saved)", savedPayments.size());
+                }
             }
 
             // ==========================================

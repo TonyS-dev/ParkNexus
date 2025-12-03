@@ -8,6 +8,8 @@ import org.codeup.parknexus.repository.IBuildingRepository;
 import org.codeup.parknexus.repository.IFloorRepository;
 import org.codeup.parknexus.repository.IParkingSpotRepository;
 import org.codeup.parknexus.repository.IUserRepository;
+import org.codeup.parknexus.repository.IPaymentRepository;
+import org.codeup.parknexus.domain.enums.PaymentStatus;
 import org.codeup.parknexus.service.IAdminService;
 import org.codeup.parknexus.web.dto.admin.AdminDashboardResponse;
 import org.codeup.parknexus.web.dto.admin.BuildingResponse;
@@ -30,6 +32,7 @@ public class AdminServiceImpl implements IAdminService {
     private final IParkingSpotRepository parkingSpotRepository;
     private final IFloorRepository floorRepository;
     private final BuildingMapper buildingMapper;
+    private final IPaymentRepository paymentRepository;
 
     @Override
     @Cacheable(value = "adminDashboard")
@@ -40,8 +43,8 @@ public class AdminServiceImpl implements IAdminService {
         long totalSpots = parkingSpotRepository.count();
         long occupiedSpots = parkingSpotRepository.countByStatus(SpotStatus.OCCUPIED);
 
-        // Calculate total revenue from completed sessions (demo: use fixed value for now)
-        BigDecimal totalRevenue = BigDecimal.valueOf(12345.50);
+        // Calculate total revenue from completed sessions
+        BigDecimal totalRevenue = paymentRepository.sumTotalAmountByStatus(PaymentStatus.SUCCESS);
 
         return AdminDashboardResponse.builder()
                 .totalUsers(totalUsers)

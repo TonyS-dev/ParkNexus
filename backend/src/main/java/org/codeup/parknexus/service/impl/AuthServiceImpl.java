@@ -11,6 +11,7 @@ import org.codeup.parknexus.service.IAuthService;
 import org.codeup.parknexus.web.dto.auth.AuthResponse;
 import org.codeup.parknexus.web.dto.auth.LoginRequest;
 import org.codeup.parknexus.web.dto.auth.RegisterRequest;
+import org.codeup.parknexus.web.mapper.UserMapper;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import jakarta.transaction.Transactional;
@@ -24,6 +25,7 @@ public class AuthServiceImpl implements IAuthService {
     private final IUserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final TokenProvider tokenProvider;
+    private final UserMapper userMapper;
 
     @Override
     public AuthResponse register(RegisterRequest request) {
@@ -57,6 +59,7 @@ public class AuthServiceImpl implements IAuthService {
 
         return AuthResponse.builder()
                 .token(token)
+                .user(userMapper.toDTO(user))
                 .build();
     }
 

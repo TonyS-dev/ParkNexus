@@ -4,8 +4,10 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.codeup.parknexus.domain.ParkingSpot;
 import org.codeup.parknexus.domain.Reservation;
+import org.codeup.parknexus.domain.enums.PaymentMethod;
 import org.codeup.parknexus.domain.enums.SpotStatus;
 import org.codeup.parknexus.domain.enums.SpotType;
+import org.codeup.parknexus.exception.ResourceNotFoundException;
 import org.codeup.parknexus.service.IReservationService;
 import org.codeup.parknexus.service.IParkingService;
 import org.codeup.parknexus.service.IPaymentService;
@@ -14,7 +16,9 @@ import org.codeup.parknexus.web.dto.user.*;
 import org.codeup.parknexus.web.mapper.ParkingSpotMapper;
 import org.codeup.parknexus.web.mapper.ReservationMapper;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.codeup.parknexus.domain.User;
 
 import java.util.List;
 import java.util.UUID;
@@ -58,33 +62,45 @@ public class UserController {
     }
 
     @PostMapping("/parking/check-in")
-    public ResponseEntity<CheckInResponse> checkIn(@Valid @RequestBody CheckInRequest request, @RequestParam UUID userId) {
-        org.codeup.parknexus.domain.User user = org.codeup.parknexus.domain.User.builder().id(userId).build();
+    public ResponseEntity<CheckInResponse> checkIn(@Valid @RequestBody CheckInRequest request, @AuthenticationPrincipal User user) {
         var session = parkingService.checkIn(user, request.getSpotId());
         CheckInResponse resp = CheckInResponse.builder()
                 .sessionId(session.getId())
                 .spotId(session.getSpot().getId())
                 .spotNumber(session.getSpot().getSpotNumber())
+                .buildingName(session.getSpot().getFloor().getBuilding().getName())
+                .floorName("Floor " + session.getSpot().getFloor().getFloorNumber())
                 .checkInTime(session.getCheckInTime())
+                .status(session.getStatus().name())
                 .message("Checked in successfully")
                 .build();
         return ResponseEntity.ok(resp);
     }
 
-    @PostMapping("/parking/check-out")
-    public ResponseEntity<CheckOutResponse> checkOut(@RequestParam UUID sessionId) {
-        return ResponseEntity.ok(parkingService.checkOut(sessionId));
+    @PostMapping("/parking/calculate-fee")
+    public ResponseEntity<FeeCalculationResponse> calculateFee(@RequestParam UUID sessionId) {
+        try {
+            FeeCalculationResponse response = parkingService.calculateFee(sessionId);
+            return ResponseEntity.ok(response);
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.notFound().build();
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
+        }
     }
 
-    @PostMapping("/payment/simulate")
-    public ResponseEntity<PaymentResponse> simulatePayment(@Valid @RequestBody PaymentRequest request) {
-        // Simulating a payment without persisting; controllers using real gateway would call service
-        PaymentResponse resp = PaymentResponse.builder()
-                .sessionId(request.getSessionId())
-                .amount(request.getAmount())
-                .status("PENDING")
-                .transactionId("SIMULATED")
-                .build();
-        return ResponseEntity.ok(resp);
+    @PostMapping("/parking/check-out")
+    public ResponseEntity<CheckOutResponse> checkOut(
+            @RequestParam UUID sessionId,
+            @RequestParam(required = false, defaultValue = "CREDIT_CARD") PaymentMethod paymentMethod) {
+        try {
+            CheckOutResponse response = parkingService.checkOut(sessionId, paymentMethod);
+            return ResponseEntity.ok(response);
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.notFound().build();
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
+        }
     }
+
 }

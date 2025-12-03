@@ -3,6 +3,7 @@ package org.codeup.parknexus.web.advice;
 import jakarta.servlet.http.HttpServletRequest;
 import org.codeup.parknexus.exception.BadRequestException;
 import org.codeup.parknexus.exception.ConflictException;
+import org.codeup.parknexus.exception.PaymentException;
 import org.codeup.parknexus.exception.ResourceNotFoundException;
 import org.codeup.parknexus.exception.UnauthorizedException;
 import org.slf4j.Logger;
@@ -151,6 +152,19 @@ public class GlobalExceptionHandler {
         pd.setProperty("timestamp", Instant.now());
         pd.setProperty("instance", req.getRequestURI());
         log.warn("Authentication failure: {}", ex.getMessage());
+        return pd;
+    }
+
+    // Error 500: Generic server error handler
+    @ExceptionHandler(PaymentException.class)
+    public ProblemDetail handlePaymentException(PaymentException ex, HttpServletRequest req) {
+        ProblemDetail pd = ProblemDetail.forStatus(HttpStatus.BAD_REQUEST);
+        pd.setType(URI.create("/errors/payment-error"));
+        pd.setTitle("Payment Processing Error");
+        pd.setDetail(ex.getMessage());
+        pd.setProperty("timestamp", Instant.now());
+        pd.setProperty("instance", req.getRequestURI());
+        log.warn("Payment error: {}", ex.getMessage());
         return pd;
     }
 
