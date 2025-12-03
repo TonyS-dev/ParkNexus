@@ -17,6 +17,9 @@ public class ReservationRequest {
     @NotNull
     private OffsetDateTime startTime;
 
+    // optional vehicle number for the reservation
+    private String vehicleNumber;
+
     // optional duration in minutes
     private Integer durationMinutes;
 }

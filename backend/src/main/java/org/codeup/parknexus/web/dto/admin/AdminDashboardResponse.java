@@ -11,8 +11,12 @@ import java.math.BigDecimal;
 public class AdminDashboardResponse {
     private Long totalSpots;
     private Long occupiedSpots;
+    private Long availableSpots;
     private BigDecimal totalRevenue;
     private Long totalUsers;
-    private Long adminsCount;
-    private Long usersCount;
+    private Long totalAdmins;
+    private Long activeUsers;
+    private Long activeSessions;
+    private Long totalReservations;
+    private Long totalPayments;
 }

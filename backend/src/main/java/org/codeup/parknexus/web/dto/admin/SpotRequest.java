@@ -21,7 +21,13 @@ public class SpotRequest {
     private String spotNumber;
 
     @NotBlank(message = "Spot type is required")
-    @Pattern(regexp = "REGULAR|VIP|HANDICAP|EV_CHARGING", message = "Invalid spot type")
+    @Pattern(regexp = "STANDARD|VIP|HANDICAP|EV_CHARGING", message = "Invalid spot type")
     private String type;
+
+    private UUID reservedByUserId;
+
+    @NotBlank(message = "Spot status is required")
+    @Pattern(regexp = "AVAILABLE|OCCUPIED|RESERVED|UNDER_MAINTENANCE", message = "Invalid spot status")
+    private String status;
 }
 

@@ -11,9 +11,14 @@ import java.util.UUID;
 @Data @NoArgsConstructor @AllArgsConstructor @Builder
 public class ReservationResponse {
     private UUID id;
+    private UUID userId;
     private UUID spotId;
-    private String spotIdentifier;
+    private String spotNumber;
+    private String buildingName;
+    private Integer floorNumber;
+    private String vehicleNumber;
     private OffsetDateTime startTime;
     private OffsetDateTime endTime;
     private String status;
+    private OffsetDateTime createdAt;
 }

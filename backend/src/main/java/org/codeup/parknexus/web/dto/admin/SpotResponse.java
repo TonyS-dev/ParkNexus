@@ -15,10 +15,13 @@ import java.util.UUID;
 public class SpotResponse {
     private UUID id;
     private UUID floorId;
-    private String floorName;
+    private Integer floorNumber;
+    private String buildingName;
     private String spotNumber;
     private String type;
     private String status;
+    private UUID reservedByUserId;
+    private String reservedByUserName;
     private OffsetDateTime createdAt;
     private OffsetDateTime updatedAt;
 }

@@ -18,6 +18,10 @@ public class ParkingSessionResponse {
     private UUID id;
     private UUID userId;
     private UUID spotId;
+    private String spotNumber;
+    private String buildingName;
+    private Integer floorNumber;
+    private String vehicleNumber;
     private ParkingSpotResponse spot;
     
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")

@@ -12,7 +12,8 @@ import org.mapstruct.Mapping;
 public interface FloorMapper {
     @Mapping(target = "buildingId", source = "building.id")
     @Mapping(target = "buildingName", source = "building.name")
-    @Mapping(target = "name", expression = "java(\"Floor \" + floor.getFloorNumber())")
+    @Mapping(target = "floorNumber", source = "floorNumber")
+    @Mapping(target = "spotCount", ignore = true)
     @Mapping(target = "totalSpots", ignore = true)
     @Mapping(target = "availableSpots", ignore = true)
     FloorResponse toResponse(Floor floor);

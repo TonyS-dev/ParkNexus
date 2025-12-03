@@ -13,14 +13,16 @@ import org.codeup.parknexus.service.IReservationService;
 import org.codeup.parknexus.service.IParkingService;
 import org.codeup.parknexus.service.IPaymentService;
 import org.codeup.parknexus.service.IUserService;
+import org.codeup.parknexus.service.IAdminService;
 import org.codeup.parknexus.web.dto.user.*;
 import org.codeup.parknexus.web.mapper.ParkingSpotMapper;
 import org.codeup.parknexus.web.mapper.ReservationMapper;
+import org.codeup.parknexus.web.mapper.ParkingSessionMapper;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
-import org.codeup.parknexus.domain.User;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 
@@ -33,12 +35,20 @@ public class UserController {
     private final IParkingService parkingService;
     private final IReservationService reservationService;
     private final IPaymentService paymentService;
+    private final IAdminService adminService;
     private final ParkingSpotMapper parkingSpotMapper;
     private final ReservationMapper reservationMapper;
+    private final ParkingSessionMapper parkingSessionMapper;
 
     @GetMapping("/user/dashboard")
-    public ResponseEntity<DashboardResponse> dashboard(@RequestParam UUID userId) {
+    public ResponseEntity<DashboardResponse> dashboard(@AuthenticationPrincipal UUID userId) {
         return ResponseEntity.ok(userService.getDashboard(userId));
+    }
+
+    @GetMapping("/buildings")
+    public ResponseEntity<List<org.codeup.parknexus.web.dto.admin.BuildingResponse>> getBuildings() {
+        // Public endpoint to get all buildings for filtering
+        return ResponseEntity.ok(adminService.getAllBuildings());
     }
 
     @GetMapping("/spots/available")
@@ -52,9 +62,9 @@ public class UserController {
     }
 
     @PostMapping("/reservations")
-    public ResponseEntity<ReservationResponse> reserve(@Valid @RequestBody ReservationRequest request, @RequestParam UUID userId) {
+    public ResponseEntity<ReservationResponse> reserve(@Valid @RequestBody ReservationRequest request, @AuthenticationPrincipal UUID userId) {
         Reservation reservation = reservationService.createReservation(
-                org.codeup.parknexus.domain.User.builder().id(userId).build(),
+                userId,
                 request.getSpotId(),
                 request.getStartTime(),
                 request.getDurationMinutes()
@@ -63,12 +73,13 @@ public class UserController {
     }
 
     @PostMapping("/parking/check-in")
-    public ResponseEntity<CheckInResponse> checkIn(@Valid @RequestBody CheckInRequest request, @AuthenticationPrincipal User user) {
-        var session = parkingService.checkIn(user, request.getSpotId());
+    public ResponseEntity<CheckInResponse> checkIn(@Valid @RequestBody CheckInRequest request, @AuthenticationPrincipal UUID userId) {
+        var session = parkingService.checkIn(userId, request.getSpotId(), request.getVehicleNumber());
         CheckInResponse resp = CheckInResponse.builder()
                 .sessionId(session.getId())
                 .spotId(session.getSpot().getId())
                 .spotNumber(session.getSpot().getSpotNumber())
+                .vehicleNumber(session.getVehicleNumber())
                 .buildingName(session.getSpot().getFloor().getBuilding().getName())
                 .floorName("Floor " + session.getSpot().getFloor().getFloorNumber())
                 .checkInTime(session.getCheckInTime())
@@ -105,23 +116,43 @@ public class UserController {
     }
 
     @GetMapping("/parking/sessions/active")
-    public ResponseEntity<List<ParkingSession>> getActiveSessions(@AuthenticationPrincipal User user) {
-        List<ParkingSession> sessions = parkingService.getActiveSessions(user.getId());
-        return ResponseEntity.ok(sessions);
+    public ResponseEntity<List<ParkingSessionResponse>> getActiveSessions(@AuthenticationPrincipal UUID userId) {
+        List<ParkingSession> sessions = parkingService.getActiveSessions(userId);
+        return ResponseEntity.ok(parkingSessionMapper.toResponses(sessions));
+    }
+
+    @GetMapping("/parking/sessions/my")
+    public ResponseEntity<List<ParkingSessionResponse>> getMySessions(@AuthenticationPrincipal UUID userId) {
+        List<ParkingSession> sessions = parkingService.getUserSessions(userId);
+        return ResponseEntity.ok(parkingSessionMapper.toResponses(sessions));
     }
 
     @GetMapping("/reservations")
-    public ResponseEntity<List<ReservationResponse>> getReservations(@AuthenticationPrincipal User user) {
-        List<Reservation> reservations = reservationService.getUserReservations(user.getId());
+    public ResponseEntity<List<ReservationResponse>> getReservations(@AuthenticationPrincipal UUID userId) {
+        List<Reservation> reservations = reservationService.getUserReservations(userId);
         return ResponseEntity.ok(reservations.stream()
                 .map(reservationMapper::toResponse)
                 .toList());
     }
 
+    @DeleteMapping("/reservations/{reservationId}")
+    public ResponseEntity<Void> cancelReservation(
+            @PathVariable UUID reservationId,
+            @AuthenticationPrincipal UUID userId) {
+        try {
+            reservationService.cancelReservation(reservationId);
+            return ResponseEntity.noContent().build();
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.notFound().build();
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
+        }
+    }
+
     @PostMapping("/parking/payment/simulate")
     public ResponseEntity<PaymentResponse> simulatePayment(
             @RequestParam UUID sessionId,
-            @RequestParam java.math.BigDecimal amount) {
+            @RequestParam BigDecimal amount) {
         try {
             PaymentResponse response = paymentService.processPayment(sessionId, amount, PaymentMethod.CREDIT_CARD);
             return ResponseEntity.ok(response);

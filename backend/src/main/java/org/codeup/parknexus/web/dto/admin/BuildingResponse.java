@@ -16,5 +16,7 @@ public class BuildingResponse {
     private OffsetDateTime createdAt;
     private Integer totalFloors;
     private Integer totalSpots;
+    private Integer occupiedSpots;
+    private Integer availableSpots;
 }
 

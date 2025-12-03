@@ -15,5 +15,6 @@ public class CheckInRequest {
 
     // optional reservation id if checking in for a reservation
     private UUID reservationId;
-}
 
+    private String vehicleNumber;
+}

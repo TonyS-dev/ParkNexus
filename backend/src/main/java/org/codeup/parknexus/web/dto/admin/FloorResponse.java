@@ -16,7 +16,8 @@ public class FloorResponse {
     private UUID id;
     private UUID buildingId;
     private String buildingName;
-    private String name;
+    private Integer floorNumber;
+    private Integer spotCount;
     private Integer totalSpots;
     private Integer availableSpots;
     private OffsetDateTime createdAt;

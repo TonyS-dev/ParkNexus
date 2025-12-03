@@ -13,6 +13,7 @@ public class CheckInResponse {
     private UUID sessionId;
     private UUID spotId;
     private String spotNumber;
+    private String vehicleNumber;
     private String buildingName;
     private String floorName;
     private OffsetDateTime checkInTime;

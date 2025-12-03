@@ -16,7 +16,10 @@ public class ParkingSpotResponse {
     private String spotNumber;
     private String type;
     private String floorName;
+    private Integer floorNumber;
     private String buildingName;
+    private String buildingAddress;
     private String status;
+    private Double hourlyRate;
 }
 
