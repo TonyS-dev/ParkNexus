@@ -1,8 +1,24 @@
 package org.codeup.parknexus.repository;
 
 import org.codeup.parknexus.domain.User;
+import org.codeup.parknexus.domain.enums.Role;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
 
-public interface IUserRepository extends JpaRepository<User, Long> {
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+@Repository
+public interface IUserRepository extends JpaRepository<User, UUID> {
+
+    // For Login (AuthService)
+    Optional<User> findByEmail(String email);
+
+    // For Registration Validation (Prevent duplicates)
+    boolean existsByEmail(String email);
+
+    // For Admin Dashboard (Filter by role)
+    List<User> findByRole(Role role);
 }
 
