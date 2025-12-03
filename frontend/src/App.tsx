@@ -28,6 +28,9 @@ import AdminLayout from './components/layout/AdminLayout';
 // Protected Route Component
 import ProtectedRoute from './components/shared/ProtectedRoute';
 
+// 404 Page
+import NotFound from './pages/NotFound';
+
 // Create React Query client
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -97,7 +100,7 @@ function App() {
 
           {/* Default Redirects */}
           <Route path="/" element={<Navigate to="/login" replace />} />
-          <Route path="*" element={<Navigate to="/login" replace />} />
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
       </ToastProvider>

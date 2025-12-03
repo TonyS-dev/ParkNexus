@@ -10,11 +10,12 @@ import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../../components/ui/card';
 import { Car, AlertCircle } from 'lucide-react';
-import { getErrorMessage } from '../../lib/getErrorMessage';
+import { useErrorHandler } from '../../hooks/useErrorHandler';
 
 const LoginPage = () => {
   const navigate = useNavigate();
   const { setAuth, isAuthenticated, user } = useAuthStore();
+  const errorHandler = useErrorHandler();
   const [formData, setFormData] = useState<LoginRequest>({
     email: '',
     password: '',
@@ -37,8 +38,8 @@ const LoginPage = () => {
       navigate(redirectPath, { replace: true });
     },
     onError: (error: unknown) => {
-      // Api interceptor returns a standardized ApiError with a message field.
-      const msg = getErrorMessage(error, 'Login failed. Please check your credentials.');
+      // Use singleton errorHandler to provide user-friendly error messages
+      const msg = errorHandler.humanize(error, 'login');
       setError(msg);
     },
   });

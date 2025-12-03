@@ -5,7 +5,7 @@ export enum Role {
 }
 
 export enum SpotType {
-  REGULAR = 'REGULAR',
+  STANDARD = 'STANDARD',
   VIP = 'VIP',
   HANDICAP = 'HANDICAP',
   EV_CHARGING = 'EV_CHARGING'
@@ -117,6 +117,8 @@ export interface Reservation {
   spotNumber: string;
   buildingName: string;
   floorNumber: number;
+  spotType?: SpotType;
+  hourlyRate?: number;
   vehicleNumber?: string;
   startTime: string;
   endTime: string;

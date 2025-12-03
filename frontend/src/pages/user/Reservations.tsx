@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { userService } from '../../services/userService';
@@ -35,12 +35,14 @@ import {
 } from 'lucide-react';
 import { useToast } from '../../components/ui/toast';
 import { navigateWithAnimation } from '../../lib/navigateWithAnimation';
+import { useErrorHandler } from '../../hooks/useErrorHandler';
 
 const Reservations = () => {
   const queryClient = useQueryClient();
   const location = useLocation();
   const navigate = useNavigate();
   const toast = useToast();
+  const errorHandler = useErrorHandler();
   const [buildingFilter, setBuildingFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [selectedSpot, setSelectedSpot] = useState<ParkingSpot | null>(null);
@@ -151,23 +153,57 @@ const Reservations = () => {
     },
   });
 
-  // Check-in mutation (for reservations within 1 hour)
-  const checkInMutation = useMutation({
-    mutationFn: (data: { spotId: string; vehicleNumber: string }) =>
-      userService.checkIn(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['myReservations'] });
-      queryClient.invalidateQueries({ queryKey: ['userDashboard'] });
-      queryClient.invalidateQueries({ queryKey: ['availableSpots'] });
-      queryClient.invalidateQueries({ queryKey: ['mySessions'] });
-      toast.push({ message: 'Checked in successfully.', variant: 'success' });
-      // Optionally navigate to parking management or sessions view
-      setTimeout(() => navigate('/user/parking-management', { replace: true }), 200);
-    },
-    onError: (error: Error) => {
-      toast.push({ message: `Check-in failed: ${error.message}`, variant: 'error' });
-    },
-  });
+  // Check-in mutation - this just navigates, actual check-in happens in ParkingManagement
+  // But we need to make sure that after successful check-in, reservations are invalidated
+  // The actual mutation is in ParkingManagement, so we just navigate here
+  const handleCheckIn = (reservation: Reservation) => {
+    const spotId = reservation.spotId;
+    if (!spotId) {
+      toast.push({ message: errorHandler.humanize('Missing spot information', 'checkin'), variant: 'error' });
+      return;
+    }
+
+    // Fetch active session to check if user already has one
+    userService.getActiveSession().then((activeSession) => {
+      if (activeSession) {
+        // User already has an active session - show error and don't proceed
+        toast.push({
+          message: errorHandler.humanize('User already has an active session', 'checkin'),
+          variant: 'error',
+          duration: 6000
+        });
+        return;
+      }
+
+      // Try to find the spot details from available spots to get accurate hourly rate
+      const spotDetails = spots?.find(s => s.id === spotId);
+      const hourlyRate = spotDetails?.hourlyRate || reservation.hourlyRate || 0;
+
+      // Navigate to ParkingManagement page with the spot info and reservation flag
+      navigateWithAnimation(navigate, '/user/parking-management', {
+        state: {
+          action: 'checkin',
+          spot: {
+            id: spotId,
+            spotNumber: reservation.spotNumber,
+            buildingName: reservation.buildingName,
+            floorNumber: reservation.floorNumber,
+            type: spotDetails?.type || reservation.spotType || SpotType.STANDARD,
+            hourlyRate: hourlyRate,
+          },
+          hasReservation: true,
+          reservationId: reservation.id,
+        },
+      });
+    }).catch((error) => {
+      console.error('Error checking active session:', error);
+      toast.push({
+        message: errorHandler.humanize(error, 'checkin'),
+        variant: 'error',
+        duration: 6000
+      });
+    });
+  };
 
   const handleSpotClick = (spot: ParkingSpot) => {
     setSelectedSpot(spot);
@@ -179,6 +215,43 @@ const Reservations = () => {
       toast.push({ message: 'Please select a reservation start time', variant: 'warning' });
       return;
     }
+
+    const newStart = new Date(reservationStartTime);
+    if (isNaN(newStart.getTime())) {
+      toast.push({ message: 'Please enter a valid reservation start time.', variant: 'warning' });
+      return;
+    }
+
+    // Assume default duration of 60 minutes if backend doesn't provide duration input
+    const DEFAULT_DURATION_MIN = 60;
+    const newEnd = new Date(newStart.getTime() + DEFAULT_DURATION_MIN * 60 * 1000);
+
+    // Check 1: Prevent user from having MORE THAN ONE active/pending reservation
+    if ((activeReservations || []).length > 0) {
+      toast.push({
+        message: '❌ You already have an active reservation! You can only have one reservation at a time. Please cancel your existing reservation first.',
+        variant: 'error',
+        duration: 6000
+      });
+      return;
+    }
+
+    // Check 2: Check for overlap with existing active/pending reservations for this user (safety check)
+    const overlapping = (activeReservations || []).some((r: Reservation) => {
+      const existingStart = new Date(r.startTime);
+      const existingEnd = r.endTime ? new Date(r.endTime) : new Date(existingStart.getTime() + DEFAULT_DURATION_MIN * 60 * 1000);
+      // Overlap if newStart < existingEnd && existingStart < newEnd
+      return newStart < existingEnd && existingStart < newEnd;
+    });
+
+    if (overlapping) {
+      toast.push({
+        message: '📅 You already have a reservation that overlaps this time. Please choose a different time or cancel the existing reservation.',
+        variant: 'warning',
+      });
+      return;
+    }
+
     const isoDateTime = new Date(reservationStartTime).toISOString();
     reserveMutation.mutate({
       spotId: selectedSpot.id,
@@ -214,11 +287,9 @@ const Reservations = () => {
   };
 
   // Determine active reservations - show PENDING and ACTIVE (exclude CANCELLED and COMPLETED)
-  const activeReservations = useMemo(() => {
-    return (reservations || []).filter((r: Reservation) =>
-      r.status === ReservationStatus.PENDING || r.status === ReservationStatus.ACTIVE
-    );
-  }, [reservations]);
+  const activeReservations = (reservations || []).filter((r: Reservation) =>
+    r.status === ReservationStatus.PENDING || r.status === ReservationStatus.ACTIVE
+  );
 
   // Auto-redirect to available spots when there are no active reservations, unless user cancels or dialog is open
   useEffect(() => {
@@ -298,7 +369,6 @@ const Reservations = () => {
                   <div className="flex flex-col items-end space-y-2">
                     <div className="flex space-x-2">
                       {(() => {
-                        const spotId = reservation.spotId;
                         const startMs = new Date(reservation.startTime).getTime();
                         const oneHourBefore = startMs - 60 * 60 * 1000;
                         const now = Date.now();
@@ -308,23 +378,7 @@ const Reservations = () => {
                           return (
                             <Button
                               size="sm"
-                              onClick={() => {
-                                if (!spotId) {
-                                  toast.push({ message: 'Missing spot information for check-in.', variant: 'error' });
-                                  return;
-                                }
-                                // Use reservation vehicle number if available; otherwise prompt the user
-                                let vehicle = reservation.vehicleNumber;
-                                if (!vehicle) {
-                                  vehicle = window.prompt('Enter vehicle number to check in:') || '';
-                                }
-                                if (!vehicle) {
-                                  toast.push({ message: 'Vehicle number is required to check in.', variant: 'warning' });
-                                  return;
-                                }
-                                checkInMutation.mutate({ spotId, vehicleNumber: vehicle });
-                              }}
-                              disabled={checkInMutation.isPending}
+                              onClick={() => handleCheckIn(reservation)}
                             >
                               Check In
                             </Button>
@@ -411,7 +465,7 @@ const Reservations = () => {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="all">All Types</SelectItem>
-                          <SelectItem value={SpotType.REGULAR}>Regular</SelectItem>
+                          <SelectItem value={SpotType.STANDARD}>Standard</SelectItem>
                           <SelectItem value={SpotType.VIP}>VIP</SelectItem>
                           <SelectItem value={SpotType.HANDICAP}>Handicap</SelectItem>
                           <SelectItem value={SpotType.EV_CHARGING}>EV Charging</SelectItem>

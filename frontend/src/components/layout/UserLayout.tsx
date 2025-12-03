@@ -1,4 +1,4 @@
-import { Outlet, Link, useNavigate } from 'react-router-dom';
+import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { Button } from '../ui/button';
 import { Car, LayoutDashboard, ParkingCircle, Calendar, LogIn, LogOut } from 'lucide-react';
@@ -6,14 +6,20 @@ import { Car, LayoutDashboard, ParkingCircle, Calendar, LogIn, LogOut } from 'lu
 const UserLayout = () => {
   const { user, logout } = useAuthStore();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const handleLogout = () => {
     logout();
     navigate('/login');
   };
 
+  // Helper function to check if a path is active
+  const isActivePath = (path: string) => {
+    return location.pathname === path || location.pathname.startsWith(path + '/');
+  };
+
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Header */}
       <header className="bg-white border-b">
         <div className="container mx-auto px-4 py-4">
@@ -41,28 +47,44 @@ const UserLayout = () => {
           <div className="flex space-x-1">
             <Link
               to="/user/dashboard"
-              className="flex items-center px-4 py-3 text-sm font-medium text-gray-700 hover:text-teal-600 hover:bg-gray-50 border-b-2 border-transparent hover:border-teal-600 transition-colors"
+              className={`flex items-center px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                isActivePath('/user/dashboard')
+                  ? 'text-teal-600 bg-teal-50 border-teal-600'
+                  : 'text-gray-700 border-transparent hover:text-teal-600 hover:bg-gray-50 hover:border-teal-600'
+              }`}
             >
               <LayoutDashboard className="h-4 w-4 mr-2" />
               Dashboard
             </Link>
             <Link
               to="/user/spots"
-              className="flex items-center px-4 py-3 text-sm font-medium text-gray-700 hover:text-teal-600 hover:bg-gray-50 border-b-2 border-transparent hover:border-teal-600 transition-colors"
+              className={`flex items-center px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                isActivePath('/user/spots')
+                  ? 'text-teal-600 bg-teal-50 border-teal-600'
+                  : 'text-gray-700 border-transparent hover:text-teal-600 hover:bg-gray-50 hover:border-teal-600'
+              }`}
             >
               <ParkingCircle className="h-4 w-4 mr-2" />
               Available Spots
             </Link>
             <Link
               to="/user/reservations"
-              className="flex items-center px-4 py-3 text-sm font-medium text-gray-700 hover:text-teal-600 hover:bg-gray-50 border-b-2 border-transparent hover:border-teal-600 transition-colors"
+              className={`flex items-center px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                isActivePath('/user/reservations')
+                  ? 'text-teal-600 bg-teal-50 border-teal-600'
+                  : 'text-gray-700 border-transparent hover:text-teal-600 hover:bg-gray-50 hover:border-teal-600'
+              }`}
             >
               <Calendar className="h-4 w-4 mr-2" />
               Reservations
             </Link>
             <Link
               to="/user/parking-management"
-              className="flex items-center px-4 py-3 text-sm font-medium text-gray-700 hover:text-teal-600 hover:bg-gray-50 border-b-2 border-transparent hover:border-teal-600 transition-colors"
+              className={`flex items-center px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                isActivePath('/user/parking-management') || isActivePath('/user/parking')
+                  ? 'text-teal-600 bg-teal-50 border-teal-600'
+                  : 'text-gray-700 border-transparent hover:text-teal-600 hover:bg-gray-50 hover:border-teal-600'
+              }`}
             >
               <LogIn className="h-4 w-4 mr-2" />
               Parking Management
@@ -72,12 +94,12 @@ const UserLayout = () => {
       </nav>
 
       {/* Main Content */}
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-4 py-8 flex-1">
         <Outlet />
       </main>
 
       {/* Footer */}
-      <footer className="bg-white border-t mt-auto">
+      <footer className="bg-white border-t">
         <div className="container mx-auto px-4 py-6">
           <p className="text-center text-sm text-gray-600">
             © 2025 ParkNexus. All rights reserved.
@@ -89,4 +111,3 @@ const UserLayout = () => {
 };
 
 export default UserLayout;
-

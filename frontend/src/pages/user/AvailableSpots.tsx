@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { userService } from '../../services/userService';
 import { api } from '../../services/api';
 import { SpotType } from '../../types';
@@ -14,25 +15,40 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../../components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../../components/ui/dialog';
 import { Badge } from '../../components/ui/badge';
 import {
+  ParkingCircle,
+  Filter,
   MapPin,
   DollarSign,
-  Filter,
-  CheckCircle,
   AlertCircle,
   Calendar,
+  CheckCircle,
   LogIn
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
-import { navigateWithAnimation } from '../../lib/navigateWithAnimation';
 import { useToast } from '../../components/ui/toast';
+import { navigateWithAnimation } from '../../lib/navigateWithAnimation';
+import { useErrorHandler } from '../../hooks/useErrorHandler';
 
 const AvailableSpots = () => {
   const navigate = useNavigate();
   const toast = useToast();
+  const location = useLocation();
+  const errorHandler = useErrorHandler();
   const [buildingFilter, setBuildingFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
+  const [selectedSpotForCheckIn, setSelectedSpotForCheckIn] = useState<ParkingSpot | null>(null);
+  const [showReservationWarning, setShowReservationWarning] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 9; // Show 9 spots per page (3x3 grid)
 
   // Fetch buildings for filter
   const { data: buildings } = useQuery({
@@ -68,29 +84,68 @@ const AvailableSpots = () => {
     refetchInterval: 15000,
   });
 
+  // Reset page to 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [buildingFilter, typeFilter]);
+
   const handleCheckIn = (spot: ParkingSpot) => {
     // If user has an active session, show error and prevent check-in
     if (activeSession) {
       toast.push({
-        message: 'You already have an active parking session. Please check out first before checking in to a new spot.',
-        variant: 'error'
+        message: errorHandler.humanize('User already has an active session', 'checkin'),
+        variant: 'error',
+        duration: 6000
       });
       return;
     }
 
-    // Check if this spot has a reservation
-    const hasReservation = reservations?.some(
-      (r: { spotId: string; status: string }) =>
-        r.spotId === spot.id && r.status === 'ACTIVE'
-    );
+    // Check if user has ANY reservation (not just for this spot)
+    const hasReservation = reservations && reservations.length > 0;
+
+    if (hasReservation) {
+      // Show confirmation dialog before proceeding
+      setSelectedSpotForCheckIn(spot);
+      setShowReservationWarning(true);
+    } else {
+      // No reservation, proceed directly to check-in
+      proceedWithCheckIn(spot);
+    }
+  };
+
+  const proceedWithCheckIn = (spot: ParkingSpot) => {
+    // Get all active/pending reservation IDs to cancel them after check-in
+    const reservationIds = (reservations || [])
+      .filter((r: any) => r.status === 'PENDING' || r.status === 'ACTIVE')
+      .map((r: any) => r.id);
 
     navigateWithAnimation(navigate, '/user/parking-management', {
       state: {
         action: 'checkin',
         spot,
-        hasReservation
+        hasReservation: reservationIds.length > 0,
+        reservationIds: reservationIds, // Pass ALL reservation IDs
       }
     });
+  };
+
+  const handleConfirmCheckInWithReservation = () => {
+    if (selectedSpotForCheckIn) {
+      // Close the warning dialog
+      setShowReservationWarning(false);
+
+      // Proceed to check-in (backend will handle nullifying the reservation)
+      proceedWithCheckIn(selectedSpotForCheckIn);
+
+      // Show info toast
+      toast.push({
+        message: '⚠️ Your existing reservation will be cancelled when you complete this check-in.',
+        variant: 'warning',
+        duration: 5000
+      });
+
+      setSelectedSpotForCheckIn(null);
+    }
   };
 
   const handleReserve = (spot: ParkingSpot) => {
@@ -211,7 +266,7 @@ const AvailableSpots = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Types</SelectItem>
-                  <SelectItem value={SpotType.REGULAR}>Regular</SelectItem>
+                  <SelectItem value={SpotType.STANDARD}>Standard</SelectItem>
                   <SelectItem value={SpotType.VIP}>VIP</SelectItem>
                   <SelectItem value={SpotType.HANDICAP}>Handicap</SelectItem>
                   <SelectItem value={SpotType.EV_CHARGING}>EV Charging</SelectItem>
@@ -244,80 +299,143 @@ const AvailableSpots = () => {
 
       {/* Spots Grid */}
       {spots && spots.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {spots.map((spot) => {
-            const hasReservation = reservations?.some(
-              (r: { spotId: string; status: string }) =>
-                r.spotId === spot.id && r.status === 'ACTIVE'
-            );
+        <>
+          {/* Calculate pagination */}
+          {(() => {
+            const totalPages = Math.ceil(spots.length / itemsPerPage);
+            const startIndex = (currentPage - 1) * itemsPerPage;
+            const endIndex = startIndex + itemsPerPage;
+            const paginatedSpots = spots.slice(startIndex, endIndex);
 
             return (
-              <Card
-                key={spot.id}
-                className="hover:shadow-lg transition-shadow"
-              >
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <CardTitle className="text-lg">
-                        {getSpotTypeIcon(spot.type)} Spot {spot.spotNumber}
-                      </CardTitle>
-                      <CardDescription className="mt-1">
-                        <MapPin className="h-3 w-3 inline mr-1" />
-                        {spot.buildingName} - Floor {spot.floorNumber}
-                      </CardDescription>
-                    </div>
-                    <Badge className={getSpotTypeColor(spot.type)} variant="outline">
-                      {spot.type}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-600">Hourly Rate:</span>
-                    <span className="font-semibold text-green-600 flex items-center">
-                      <DollarSign className="h-4 w-4" />
-                      {spot.hourlyRate}/hr
-                    </span>
-                  </div>
-                  <div className="flex items-center text-sm">
-                    <CheckCircle className="h-4 w-4 text-green-600 mr-1" />
-                    <span className="text-green-600 font-semibold">Available</span>
-                  </div>
+              <>
+                {/* Spots Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {paginatedSpots.map((spot) => {
+                    const hasReservation = reservations?.some(
+                      (r: { spotId: string; status: string }) =>
+                        r.spotId === spot.id && r.status === 'ACTIVE'
+                    );
 
-                  {hasReservation && (
-                    <div className="bg-blue-50 border border-blue-200 rounded px-2 py-1">
-                      <p className="text-xs text-blue-700 font-medium">
-                        ✓ You have a reservation
-                      </p>
-                    </div>
-                  )}
+                    return (
+                      <Card
+                        key={spot.id}
+                        className="hover:shadow-lg transition-shadow"
+                      >
+                        <CardHeader className="pb-3">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <CardTitle className="text-lg">
+                                {getSpotTypeIcon(spot.type)} Spot {spot.spotNumber}
+                              </CardTitle>
+                              <CardDescription className="mt-1">
+                                <MapPin className="h-3 w-3 inline mr-1" />
+                                {spot.buildingName} - Floor {spot.floorNumber}
+                              </CardDescription>
+                            </div>
+                            <Badge className={getSpotTypeColor(spot.type)} variant="outline">
+                              {spot.type}
+                            </Badge>
+                          </div>
+                        </CardHeader>
+                        <CardContent className="space-y-3">
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-gray-600">Hourly Rate:</span>
+                            <span className="font-semibold text-green-600 flex items-center">
+                              <DollarSign className="h-4 w-4" />
+                              {spot.hourlyRate}/hr
+                            </span>
+                          </div>
+                          <div className="flex items-center text-sm">
+                            <CheckCircle className="h-4 w-4 text-green-600 mr-1" />
+                            <span className="text-green-600 font-semibold">Available</span>
+                          </div>
 
-                  <div className="grid grid-cols-2 gap-2 pt-2">
-                    <Button
-                      size="sm"
-                      variant={hasReservation ? "default" : "outline"}
-                      onClick={() => handleCheckIn(spot)}
-                      className="w-full"
-                    >
-                      <LogIn className="h-3 w-3 mr-1" />
-                      Check-In
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant={hasReservation ? "outline" : "default"}
-                      onClick={() => handleReserve(spot)}
-                      className="w-full"
-                    >
-                      <Calendar className="h-3 w-3 mr-1" />
-                      Reserve
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
+                          {hasReservation && (
+                            <div className="bg-blue-50 border border-blue-200 rounded px-2 py-1">
+                              <p className="text-xs text-blue-700 font-medium">
+                                ✓ You have a reservation
+                              </p>
+                            </div>
+                          )}
+
+                          <div className="grid grid-cols-2 gap-2 pt-2">
+                            <Button
+                              size="sm"
+                              variant={hasReservation ? "default" : "outline"}
+                              onClick={() => handleCheckIn(spot)}
+                              className="w-full"
+                            >
+                              <LogIn className="h-3 w-3 mr-1" />
+                              Check-In
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant={hasReservation ? "outline" : "default"}
+                              onClick={() => handleReserve(spot)}
+                              className="w-full"
+                            >
+                              <Calendar className="h-3 w-3 mr-1" />
+                              Reserve
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+
+                {/* Pagination Controls */}
+                {totalPages > 1 && (
+                  <Card>
+                    <CardContent className="py-4">
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm text-gray-600">
+                          Page <span className="font-semibold">{currentPage}</span> of{' '}
+                          <span className="font-semibold">{totalPages}</span> ({spots.length} total spots)
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                            disabled={currentPage === 1}
+                          >
+                            ← Previous
+                          </Button>
+
+                          {/* Page Numbers */}
+                          <div className="flex items-center space-x-1">
+                            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                              <Button
+                                key={page}
+                                variant={page === currentPage ? 'default' : 'outline'}
+                                size="sm"
+                                onClick={() => setCurrentPage(page)}
+                                className="min-w-10"
+                              >
+                                {page}
+                              </Button>
+                            ))}
+                          </div>
+
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                            disabled={currentPage === totalPages}
+                          >
+                            Next →
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+              </>
             );
-          })}
-        </div>
+          })()}
+        </>
       ) : (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
@@ -328,6 +446,33 @@ const AvailableSpots = () => {
             </p>
           </CardContent>
         </Card>
+      )}
+
+      {/* Confirmation Dialog for Check-In with Reservation */}
+      {showReservationWarning && (
+        <Dialog open={showReservationWarning} onOpenChange={setShowReservationWarning}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Confirm Check-In</DialogTitle>
+              <DialogDescription>
+                You have an active reservation for this spot. Proceeding with check-in will cancel your reservation. Do you want to continue?
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setShowReservationWarning(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleConfirmCheckInWithReservation}
+              >
+                Confirm Check-In
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
 
     </div>

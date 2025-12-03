@@ -37,10 +37,10 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       {children}
       <div aria-live="polite" className="fixed bottom-4 right-4 z-50 flex flex-col items-end space-y-2">
         {toasts.map((t) => (
-          <div key={t.id} className={`max-w-xs w-full px-4 py-3 rounded shadow-md text-sm text-white ${t.variant === 'success' ? 'bg-green-600' : t.variant === 'error' ? 'bg-red-600' : t.variant === 'warning' ? 'bg-yellow-600 text-black' : 'bg-teal-600'}`}>
-            <div className="flex items-start justify-between">
-              <div className="truncate">{t.message}</div>
-              <button className="ml-3 opacity-80 hover:opacity-100" onClick={() => remove(t.id)}>✕</button>
+          <div key={t.id} className={`max-w-md w-full px-4 py-3 rounded shadow-md text-sm text-white ${t.variant === 'success' ? 'bg-green-600' : t.variant === 'error' ? 'bg-red-600' : t.variant === 'warning' ? 'bg-yellow-600 text-black' : 'bg-teal-600'}`}>
+            <div className="flex items-start justify-between gap-3">
+              <div className="whitespace-normal break-words flex-1">{t.message}</div>
+              <button className="opacity-80 hover:opacity-100 flex-shrink-0" onClick={() => remove(t.id)}>✕</button>
             </div>
           </div>
         ))}

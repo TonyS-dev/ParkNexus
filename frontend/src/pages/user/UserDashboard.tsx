@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { userService } from '../../services/userService';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
@@ -9,13 +10,40 @@ import {
 } from 'lucide-react';
 
 const UserDashboard = () => {
-  const { data: dashboard, isLoading, error } = useQuery({
+  const { data: dashboard, isLoading, error, refetch } = useQuery({
     queryKey: ['userDashboard'],
     queryFn: () => userService.getDashboard(),
-    refetchInterval: 5000, // Refetch every 5 seconds for real-time updates
-    refetchOnWindowFocus: true, // Refetch when user returns to tab
+    refetchInterval: 3000, // Refetch every 3 seconds for real-time updates (more frequent)
+    refetchOnWindowFocus: 'always', // Always refetch when window regains focus
+    refetchOnMount: 'always', // Always refetch on mount
     staleTime: 0, // Always consider data stale for immediate updates
+    gcTime: 0, // Disable garbage collection of cache (previously cacheTime)
   });
+
+  // Track if component is mounted to refetch on visibility
+  const hasRefetchedOnVisibility = useRef(false);
+
+  // Refetch immediately when component mounts or becomes visible
+  useEffect(() => {
+    // Refetch on initial mount
+    refetch();
+    hasRefetchedOnVisibility.current = true;
+
+    // Listen for visibility changes (when tab becomes active)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && !hasRefetchedOnVisibility.current) {
+        refetch();
+      }
+      if (document.visibilityState === 'visible') {
+        hasRefetchedOnVisibility.current = true;
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [refetch]);
 
   if (isLoading) {
     return (

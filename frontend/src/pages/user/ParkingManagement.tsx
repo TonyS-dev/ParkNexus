@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { userService } from '../../services/userService';
 import { PaymentMethod, SpotType } from '../../types';
-import type { ParkingSession, ParkingSpot, CheckInRequest } from '../../types';
+import type { ParkingSession, ParkingSpot, CheckInRequest, ApiError } from '../../types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Label } from '../../components/ui/label';
@@ -25,7 +25,8 @@ import {
   SelectValue,
 } from '../../components/ui/select';
 import { navigateWithAnimation } from '../../lib/navigateWithAnimation';
-import { formatDuration, formatDurationFromTimestamps } from '../../lib/formatDuration';
+import { formatDuration } from '../../lib/formatDuration';
+import { useErrorHandler } from '../../hooks/useErrorHandler';
 import {
   Table,
   TableBody,
@@ -42,42 +43,87 @@ import { useAuthValidation } from '../../hooks/useAuth';
 interface CheckInSectionProps {
   preSelectedSpot?: ParkingSpot | null;
   hasReservation?: boolean;
+  activeSession?: ParkingSession | null;
+  location?: any;
 }
 
-const CheckInSection = ({ preSelectedSpot, hasReservation }: CheckInSectionProps) => {
+const CheckInSection = ({ preSelectedSpot, hasReservation, activeSession, location }: CheckInSectionProps) => {
   const queryClient = useQueryClient();
   const toast = useToast();
+  const errorHandler = useErrorHandler();
   const [selectedSpot, setSelectedSpot] = useState<ParkingSpot | null>(null);
   const [vehicleNumber, setVehicleNumber] = useState('');
   const [checkInDialog, setCheckInDialog] = useState(false);
 
-  // Handle pre-selected spot from Available Spots
+  // Handle pre-selected spot from Available Spots or Reservations
   useEffect(() => {
     if (preSelectedSpot) {
+      // Check if user already has an active session
+      if (activeSession) {
+        toast.push({
+          message: errorHandler.humanize('User already has an active session', 'checkin'),
+          variant: 'error',
+          duration: 6000
+        });
+        return;
+      }
+
       // Use setTimeout to avoid synchronous state updates in effect
       setTimeout(() => {
         setSelectedSpot(preSelectedSpot);
         setCheckInDialog(true);
       }, 0);
     }
-  }, [preSelectedSpot]);
+  }, [preSelectedSpot, activeSession, toast]);
 
   // Note: available spots and building lists are shown in dedicated pages; this section only handles check-in dialog when a spot is pre-selected.
 
   // Check-in mutation
   const checkInMutation = useMutation({
-    mutationFn: (data: CheckInRequest) => userService.checkIn(data),
+    mutationFn: async (data: CheckInRequest & { reservationIds?: string[] }) => {
+      // First, check in to the spot
+      const session = await userService.checkIn(data);
+
+      // Cancel ALL reservations after successful check-in
+      if (data.reservationIds && data.reservationIds.length > 0) {
+        try {
+          // Cancel all reservations in parallel
+          await Promise.all(
+            data.reservationIds.map((id) => userService.cancelReservation(id))
+          );
+        } catch (error) {
+          console.error('Failed to cancel reservations after check-in:', error);
+          // Don't throw error here - check-in was successful, we just failed to cancel reservations
+        }
+      }
+
+      return session;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['activeSession'] });
       queryClient.invalidateQueries({ queryKey: ['availableSpots'] });
       queryClient.invalidateQueries({ queryKey: ['userDashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['myReservations'] }); // Clear reservations after check-in
       setCheckInDialog(false);
       setSelectedSpot(null);
       setVehicleNumber('');
 
+      // Show success message
+      toast.push({
+        message: '✅ Successfully checked in! Your parking session has started.',
+        variant: 'success'
+      });
+
       // Clear navigation state to prevent dialog from reopening
       window.history.replaceState({}, document.title);
-
+    },
+    onError: (error: ApiError) => {
+      const friendlyError = errorHandler.humanize(error, 'checkin');
+      toast.push({
+        message: friendlyError,
+        variant: 'error',
+        duration: 6000
+      });
     },
   });
 
@@ -86,9 +132,20 @@ const CheckInSection = ({ preSelectedSpot, hasReservation }: CheckInSectionProps
       toast.push({ message: 'Please enter vehicle number', variant: 'warning' });
       return;
     }
+
+    // Get reservation IDs from location state (can be array from Available Spots or single ID from Reservations)
+    const reservationId = (location.state as any)?.reservationId;
+    const reservationIds = (location.state as any)?.reservationIds;
+
+    // Combine into array for consistency
+    const allReservationIds = [];
+    if (reservationId) allReservationIds.push(reservationId);
+    if (reservationIds && Array.isArray(reservationIds)) allReservationIds.push(...reservationIds);
+
     checkInMutation.mutate({
       spotId: selectedSpot.id,
       vehicleNumber: vehicleNumber,
+      reservationIds: allReservationIds.length > 0 ? allReservationIds : undefined,
     });
   };
 
@@ -133,7 +190,7 @@ const CheckInSection = ({ preSelectedSpot, hasReservation }: CheckInSectionProps
               {hasReservation && (
                 <div className="bg-teal-50 border border-teal-200 rounded-md p-3">
                   <p className="text-sm text-teal-800">
-                    <strong>✓ You have a reservation for this spot</strong>
+                    <strong>✓ You have a reservation</strong>
                   </p>
                   <p className="text-xs text-teal-600 mt-1">
                     Proceeding with check-in will activate your reservation
@@ -170,10 +227,20 @@ const CheckInSection = ({ preSelectedSpot, hasReservation }: CheckInSectionProps
                 <Label htmlFor="vehicleNumber">Vehicle Number *</Label>
                 <Input
                   id="vehicleNumber"
+                  type="text"
                   placeholder="e.g., ABC-1234"
                   value={vehicleNumber}
                   onChange={(e) => setVehicleNumber(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      if (selectedSpot && vehicleNumber) {
+                        handleCheckIn();
+                      }
+                    }
+                  }}
                   disabled={checkInMutation.isPending}
+                  autoComplete="off"
                 />
               </div>
             </div>
@@ -181,6 +248,7 @@ const CheckInSection = ({ preSelectedSpot, hasReservation }: CheckInSectionProps
 
           <DialogFooter>
             <Button
+              type="button"
               variant="outline"
               onClick={() => {
                 setCheckInDialog(false);
@@ -192,6 +260,7 @@ const CheckInSection = ({ preSelectedSpot, hasReservation }: CheckInSectionProps
               Cancel
             </Button>
             <Button
+              type="button"
               onClick={handleCheckIn}
               disabled={checkInMutation.isPending || !vehicleNumber}
             >
@@ -225,6 +294,7 @@ const ParkingManagement = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const toast = useToast();
+  const errorHandler = useErrorHandler();
   const [selectedSession, setSelectedSession] = useState<ParkingSession | null>(null);
   const [checkoutDialog, setCheckoutDialog] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(PaymentMethod.CREDIT_CARD);
@@ -344,6 +414,8 @@ const ParkingManagement = () => {
         <CheckInSection
           preSelectedSpot={navigationState?.action === 'checkin' ? navigationState.spot : null}
           hasReservation={navigationState?.hasReservation}
+          activeSession={activeSession}
+          location={location}
         />
       )}
 

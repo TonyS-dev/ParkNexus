@@ -10,11 +10,12 @@ import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../../components/ui/card';
 import { Car, AlertCircle, CheckCircle } from 'lucide-react';
-import { getErrorMessage } from '../../lib/getErrorMessage';
+import { useErrorHandler } from '../../hooks/useErrorHandler';
 
 const RegisterPage = () => {
   const navigate = useNavigate();
   const { setAuth, isAuthenticated, user } = useAuthStore();
+  const errorHandler = useErrorHandler();
   const [formData, setFormData] = useState<RegisterRequest>({
     fullName: '',
     email: '',
@@ -39,7 +40,7 @@ const RegisterPage = () => {
       navigate(redirectPath, { replace: true });
     },
     onError: (error: unknown) => {
-      const msg = getErrorMessage(error, 'Registration failed. Please try again.');
+      const msg = errorHandler.humanize(error, 'register');
       setError(msg);
     },
   });
