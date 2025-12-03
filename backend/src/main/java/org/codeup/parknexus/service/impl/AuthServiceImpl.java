@@ -28,23 +28,23 @@ public class AuthServiceImpl implements IAuthService {
     @Override
     public AuthResponse register(RegisterRequest request) {
         // Validate input
-        if (request.getUsername() == null || request.getUsername().isBlank()) {
-            throw new BadRequestException("Username is required");
+        if (request.getEmail() == null || request.getEmail().isBlank()) {
+            throw new BadRequestException("Email is required");
         }
         if (request.getPassword() == null || request.getPassword().length() < 6) {
             throw new BadRequestException("Password must be at least 6 characters");
         }
 
         // Check if user already exists
-        if (userRepository.existsByEmail(request.getUsername())) {
+        if (userRepository.existsByEmail(request.getEmail())) {
             throw new BadRequestException("User already exists with this email");
         }
 
         // Create new user
         User user = User.builder()
-                .email(request.getUsername())
+                .email(request.getEmail())
                 .passwordHash(passwordEncoder.encode(request.getPassword()))
-                .fullName(request.getUsername()) // Default to username, can be updated later
+                .fullName(request.getEmail()) // Default to email, can be updated later
                 .role(Role.USER)
                 .isActive(true)
                 .createdAt(OffsetDateTime.now())
@@ -63,7 +63,7 @@ public class AuthServiceImpl implements IAuthService {
     @Override
     public AuthResponse login(LoginRequest request) {
         // Validate input
-        if (request.getUsername() == null || request.getUsername().isBlank()) {
+        if (request.getEmail() == null || request.getEmail().isBlank()) {
             throw new BadRequestException("Username is required");
         }
         if (request.getPassword() == null || request.getPassword().isBlank()) {
@@ -71,7 +71,7 @@ public class AuthServiceImpl implements IAuthService {
         }
 
         // Find user by email
-        User user = userRepository.findByEmail(request.getUsername())
+        User user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new UnauthorizedException("Invalid credentials"));
 
         // Verify password
