@@ -20,7 +20,7 @@ public class ParkingSpot {
     @UuidGenerator
     private UUID id;
 
-    @ManyToOne(optional = false)
+    @ManyToOne(optional = false, fetch = FetchType.EAGER)
     @JoinColumn(name = "floor_id", nullable = false)
     private Floor floor;
 
@@ -35,12 +35,30 @@ public class ParkingSpot {
     @Column(name = "status", nullable = false, length = 20)
     private SpotStatus status;
 
-    @Column(name = "created_at")
+    @ManyToOne
+    @JoinColumn(name = "reserved_by_user_id")
+    private User reservedBy;
+
+    @Column(name = "created_at", nullable = false)
     private OffsetDateTime createdAt;
 
-    @Column(name = "updated_at")
+    @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt;
+
+    @Column(name = "deleted_at")
+    private OffsetDateTime deletedAt;
 
     @Version
     private Long version;
+
+    @PrePersist
+    protected void onCreate() {
+        createdAt = OffsetDateTime.now();
+        updatedAt = OffsetDateTime.now();
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        updatedAt = OffsetDateTime.now();
+    }
 }
