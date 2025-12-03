@@ -1,21 +1,95 @@
 package org.codeup.parknexus.service.impl;
 
+import lombok.RequiredArgsConstructor;
+import org.codeup.parknexus.domain.User;
+import org.codeup.parknexus.domain.enums.Role;
+import org.codeup.parknexus.exception.BadRequestException;
+import org.codeup.parknexus.exception.UnauthorizedException;
+import org.codeup.parknexus.repository.IUserRepository;
+import org.codeup.parknexus.security.TokenProvider;
 import org.codeup.parknexus.service.IAuthService;
 import org.codeup.parknexus.web.dto.auth.AuthResponse;
 import org.codeup.parknexus.web.dto.auth.LoginRequest;
 import org.codeup.parknexus.web.dto.auth.RegisterRequest;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import jakarta.transaction.Transactional;
+
+import java.time.OffsetDateTime;
 
 @Service
+@RequiredArgsConstructor
+@Transactional
 public class AuthServiceImpl implements IAuthService {
+    private final IUserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final TokenProvider tokenProvider;
+
     @Override
     public AuthResponse register(RegisterRequest request) {
-        return null;
+        // Validate input
+        if (request.getUsername() == null || request.getUsername().isBlank()) {
+            throw new BadRequestException("Username is required");
+        }
+        if (request.getPassword() == null || request.getPassword().length() < 6) {
+            throw new BadRequestException("Password must be at least 6 characters");
+        }
+
+        // Check if user already exists
+        if (userRepository.existsByEmail(request.getUsername())) {
+            throw new BadRequestException("User already exists with this email");
+        }
+
+        // Create new user
+        User user = User.builder()
+                .email(request.getUsername())
+                .passwordHash(passwordEncoder.encode(request.getPassword()))
+                .fullName(request.getUsername()) // Default to username, can be updated later
+                .role(Role.USER)
+                .isActive(true)
+                .createdAt(OffsetDateTime.now())
+                .build();
+
+        user = userRepository.save(user);
+
+        // Generate JWT token
+        String token = tokenProvider.generateToken(user);
+
+        return AuthResponse.builder()
+                .token(token)
+                .build();
     }
 
     @Override
     public AuthResponse login(LoginRequest request) {
-        return null;
+        // Validate input
+        if (request.getUsername() == null || request.getUsername().isBlank()) {
+            throw new BadRequestException("Username is required");
+        }
+        if (request.getPassword() == null || request.getPassword().isBlank()) {
+            throw new BadRequestException("Password is required");
+        }
+
+        // Find user by email
+        User user = userRepository.findByEmail(request.getUsername())
+                .orElseThrow(() -> new UnauthorizedException("Invalid credentials"));
+
+        // Verify password
+        if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
+            throw new UnauthorizedException("Invalid credentials");
+        }
+
+        // Check if user is active
+        if (!user.getIsActive()) {
+            throw new UnauthorizedException("Account is disabled");
+        }
+
+        // Generate JWT token
+        String token = tokenProvider.generateToken(user);
+
+        return AuthResponse.builder()
+                .token(token)
+                .build();
     }
 }
 
