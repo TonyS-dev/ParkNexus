@@ -22,5 +22,7 @@ public interface IParkingService {
     List<ParkingSpot> getAvailableSpots();
 
     List<ParkingSpot> getAvailableSpots(UUID buildingId, UUID floorId, SpotType type, SpotStatus status);
+
+    List<ParkingSession> getActiveSessions(UUID userId);
 }
 

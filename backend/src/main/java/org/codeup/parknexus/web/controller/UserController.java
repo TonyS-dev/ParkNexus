@@ -2,6 +2,7 @@ package org.codeup.parknexus.web.controller;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.codeup.parknexus.domain.ParkingSession;
 import org.codeup.parknexus.domain.ParkingSpot;
 import org.codeup.parknexus.domain.Reservation;
 import org.codeup.parknexus.domain.enums.PaymentMethod;
@@ -99,6 +100,34 @@ public class UserController {
         } catch (ResourceNotFoundException e) {
             return ResponseEntity.notFound().build();
         } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
+        }
+    }
+
+    @GetMapping("/parking/sessions/active")
+    public ResponseEntity<List<ParkingSession>> getActiveSessions(@AuthenticationPrincipal User user) {
+        List<ParkingSession> sessions = parkingService.getActiveSessions(user.getId());
+        return ResponseEntity.ok(sessions);
+    }
+
+    @GetMapping("/reservations")
+    public ResponseEntity<List<ReservationResponse>> getReservations(@AuthenticationPrincipal User user) {
+        List<Reservation> reservations = reservationService.getUserReservations(user.getId());
+        return ResponseEntity.ok(reservations.stream()
+                .map(reservationMapper::toResponse)
+                .toList());
+    }
+
+    @PostMapping("/parking/payment/simulate")
+    public ResponseEntity<PaymentResponse> simulatePayment(
+            @RequestParam UUID sessionId,
+            @RequestParam java.math.BigDecimal amount) {
+        try {
+            PaymentResponse response = paymentService.processPayment(sessionId, amount, PaymentMethod.CREDIT_CARD);
+            return ResponseEntity.ok(response);
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.notFound().build();
+        } catch (Exception e) {
             return ResponseEntity.badRequest().build();
         }
     }

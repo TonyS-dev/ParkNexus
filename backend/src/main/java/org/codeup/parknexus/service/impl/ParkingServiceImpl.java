@@ -209,6 +209,12 @@ public class ParkingServiceImpl implements IParkingService {
         );
     }
 
+    @Override
+    public List<ParkingSession> getActiveSessions(UUID userId) {
+        logger.info("Fetching active sessions for user: {}", userId);
+        return sessionRepository.findAllByUserIdAndStatusOrderByCheckInTimeDesc(userId, "ACTIVE");
+    }
+
     /**
      * Maps spot type to fee strategy key.
      */

@@ -4,6 +4,7 @@ import org.codeup.parknexus.domain.ParkingSession;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -18,5 +19,8 @@ public interface IParkingSessionRepository extends JpaRepository<ParkingSession,
 
     // Admin Dashboard: See how many cars are inside RIGHT NOW
     long countByStatus(String status);
+
+    // To get all active sessions for a user
+    List<ParkingSession> findAllByUserIdAndStatusOrderByCheckInTimeDesc(UUID userId, String status);
 }
 

@@ -92,6 +92,7 @@ public class AuthServiceImpl implements IAuthService {
 
         return AuthResponse.builder()
                 .token(token)
+                .user(userMapper.toDTO(user))
                 .build();
     }
 }
